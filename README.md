@@ -79,7 +79,7 @@ parqueadero/
 
 ```bash
 git clone https://github.com/tu-usuario/parqueadero-sena.git
-cd parqueadero-sena
+cd frontend-parqueadero
 ```
 
 ### 2. Configurar la base de datos
