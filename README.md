@@ -126,6 +126,9 @@ Frontend disponible en: `http://localhost:4000`
 
 ---
 
+Nota: el frontend consume la API del backend en el puerto 3001.
+Asegurese de ejecutar ambos servidores al mismo tiempo.
+
 ## Endpoints de la API
 
 | Método | Ruta | Descripción | Auth |
