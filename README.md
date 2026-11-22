@@ -79,7 +79,7 @@ parqueadero/
 
 ```bash
 git clone https://github.com/tu-usuario/parqueadero-sena.git
-cd parqueadero-sena
+cd frontend-parqueadero
 ```
 
 ### 2. Configurar la base de datos
@@ -125,6 +125,9 @@ node app.js
 Frontend disponible en: `http://localhost:4000`
 
 ---
+
+Nota: el frontend consume la API del backend en el puerto 3001.
+Asegurese de ejecutar ambos servidores al mismo tiempo.
 
 ## Endpoints de la API
 
