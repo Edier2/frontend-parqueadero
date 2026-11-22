@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Registro Parqueadero</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body>
+
+<div class="theme-switch" onclick="toggleTheme()">
+    <div class="switch-track"><div class="switch-thumb"></div></div>
+    <span id="theme-label">Dark</span>
+</div>
+
+<div class="container">
+
+    <h2>Crear cuenta</h2>
+
+    <p style="color: #7f8c8d;">Regístrate para usar el sistema</p>
+
+    <form id="formRegistro">
+        <input type="text" id="nombre" placeholder="Nombre completo" required>
+        <input type="text" id="documento" placeholder="Documento" required>
+        <input type="text" id="telefono" placeholder="Teléfono" required>
+        <input type="text" id="usuario" placeholder="Usuario" required>
+        <input type="password" id="password" placeholder="Contraseña" required>
+
+        <button type="submit">Registrarme</button>
+    </form>
+
+    <p id="msg"></p>
+
+    <p><a href="/" style="color: var(--accent); font-weight: 600;">Volver al inicio de sesión</a></p>
+
+</div>
+
+<script>
+document.getElementById('formRegistro').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const msg = document.getElementById('msg');
+    const body = {
+        nombre: document.getElementById('nombre').value.trim(),
+        documento: document.getElementById('documento').value.trim(),
+        telefono: document.getElementById('telefono').value.trim(),
+        usuario: document.getElementById('usuario').value.trim(),
+        password: document.getElementById('password').value
+    };
+
+    try {
+        const res = await fetch('<%= API_URL %>/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            msg.style.color = 'var(--success)';
+            msg.innerText = 'Cuenta creada. Redirigiendo al inicio de sesión...';
+            setTimeout(() => { window.location.href = '/'; }, 1500);
+        } else {
+            msg.style.color = 'var(--danger)';
+            msg.innerText = data.error || 'No se pudo crear la cuenta';
+        }
+    } catch (err) {
+        msg.style.color = 'var(--danger)';
+        msg.innerText = 'No hay conexión con el servidor';
+    }
+});
+
+function toggleTheme() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const next = isDark ? '' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    document.getElementById('theme-label').textContent = isDark ? 'Dark' : 'Light';
+    localStorage.setItem('theme', next);
+}
+const savedTheme = localStorage.getItem('theme');
+if (savedTheme) {
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    document.getElementById('theme-label').textContent = savedTheme === 'dark' ? 'Light' : 'Dark';
+}
+</script>
+
+</body>
+</html>
