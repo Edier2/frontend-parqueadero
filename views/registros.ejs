@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ingresos y salidas</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/app.css">
+</head>
+
+<body class="con-menu">
+
+<div class="theme-switch" onclick="toggleTheme()">
+    <div class="switch-track"><div class="switch-thumb"></div></div>
+    <span id="theme-label">Dark</span>
+</div>
+
+<div class="container xwide">
+
+    <nav id="menu" class="menu"></nav>
+
+    <h2>Ingresos y salidas</h2>
+    <p id="textoTarifas">Cargando tarifas...</p>
+
+    <!-- Resumen del día -->
+    <div class="stats">
+        <div class="stat"><div class="num" id="statDentro">—</div><div class="etq">Vehículos dentro</div></div>
+        <div class="stat"><div class="num" id="statSalidas">—</div><div class="etq">Salidas hoy</div></div>
+        <div class="stat"><div class="num" id="statRecaudo">—</div><div class="etq">Recaudado hoy</div></div>
+    </div>
+
+    <div id="mensaje" class="alert"></div>
+
+    <div class="grid-2">
+        <!-- Ingreso -->
+        <div class="bloque">
+            <h4>Registrar ingreso</h4>
+            <input type="text" id="placaEntrada" placeholder="Placa (ej: ABC123)" maxlength="10">
+            <select id="tipoEntrada">
+                <option value="">Tipo (solo si el vehículo es nuevo)</option>
+            </select>
+            <button onclick="registrarEntrada()">Registrar ingreso</button>
+            <p class="ayuda">Si la placa no está registrada, se registra con el tipo elegido.</p>
+        </div>
+
+        <!-- Salida -->
+        <div class="bloque">
+            <h4>Registrar salida</h4>
+            <input type="text" id="placaSalida" placeholder="Placa (ej: ABC123)" maxlength="10">
+            <button onclick="registrarSalida()">Registrar salida y calcular valor</button>
+            <div id="ticket" class="ticket"></div>
+        </div>
+    </div>
+
+    <h4>Vehículos dentro del parqueadero</h4>
+    <div class="tabla-scroll">
+        <table>
+            <thead><tr><th>Placa</th><th>Tipo</th><th>Entrada</th><th>Tiempo</th><th>Acción</th></tr></thead>
+            <tbody id="tablaDentro"></tbody>
+        </table>
+    </div>
+
+    <h4>Historial de salidas</h4>
+    <div class="tabla-scroll">
+        <table>
+            <thead><tr><th>Placa</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th>Tiempo</th><th>Valor</th><th>Registró</th></tr></thead>
+            <tbody id="tablaHistorial"></tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>window.API_URL = "<%= API_URL %>";</script>
+<script src="/js/comun.js"></script>
+<script>
+exigirSesion();
+pintarMenu('/registros');
+
+const icono = tipo => tipo === 'Moto' ? '🏍️' : '🚗';
+
+async function cargarTarifas() {
+    try {
+        const tarifas = await api('GET', '/api/tarifas');
+        document.getElementById('textoTarifas').textContent =
+            'Tarifas: ' + tarifas.map(t => `${t.tipo} ${pesos(t.valor_hora)} por hora`).join(' · ') +
+            '. Cada fracción de hora se cobra como hora completa.';
+        const select = document.getElementById('tipoEntrada');
+        select.innerHTML = '<option value="">Tipo (solo si el vehículo es nuevo)</option>' +
+            tarifas.map(t => `<option value="${esc(t.tipo)}">${icono(t.tipo)} ${esc(t.tipo)}</option>`).join('');
+    } catch (e) {
+        aviso('mensaje', e.message);
+    }
+}
+
+async function cargarResumen() {
+    try {
+        const r = await api('GET', '/api/registros/resumen');
+        document.getElementById('statDentro').textContent = r.dentro;
+        document.getElementById('statSalidas').textContent = r.salidas;
+        document.getElementById('statRecaudo').textContent = pesos(r.recaudado);
+    } catch (e) { /* el mensaje ya se muestra en las otras consultas */ }
+}
+
+async function cargarRegistros() {
+    try {
+        const registros = await api('GET', '/api/registros');
+        const dentro = registros.filter(r => !r.hora_salida);
+        const salidas = registros.filter(r => r.hora_salida);
+        const ahora = Date.now();
+
+        document.getElementById('tablaDentro').innerHTML = dentro.length ? dentro.map(r => `
+            <tr>
+                <td><strong>${esc(r.placa)}</strong></td>
+                <td>${icono(r.tipo)} ${esc(r.tipo)}</td>
+                <td>${fechaHora(r.hora_entrada)}</td>
+                <td>${duracion(Math.max(0, Math.floor((ahora - new Date(r.hora_entrada)) / 60000)))}</td>
+                <td><button class="btn-sm" onclick="darSalida('${esc(r.placa)}')">Dar salida</button></td>
+            </tr>`).join('') : '<tr><td colspan="5" class="vacio">No hay vehículos dentro</td></tr>';
+
+        document.getElementById('tablaHistorial').innerHTML = salidas.length ? salidas.map(r => `
+            <tr>
+                <td><strong>${esc(r.placa)}</strong></td>
+                <td>${icono(r.tipo)} ${esc(r.tipo)}</td>
+                <td>${fechaHora(r.hora_entrada)}</td>
+                <td>${fechaHora(r.hora_salida)}</td>
+                <td>${duracion(r.minutos)}</td>
+                <td><strong>${pesos(r.valor)}</strong></td>
+                <td>${esc(r.registrado_por || '—')}</td>
+            </tr>`).join('') : '<tr><td colspan="7" class="vacio">Todavía no hay salidas registradas</td></tr>';
+    } catch (e) {
+        aviso('mensaje', e.message);
+    }
+}
+
+function recargar() {
+    cargarResumen();
+    cargarRegistros();
+}
+
+async function registrarEntrada() {
+    const placa = document.getElementById('placaEntrada').value.trim();
+    const tipo = document.getElementById('tipoEntrada').value;
+    if (!placa) return aviso('mensaje', 'Escribe la placa del vehículo que ingresa.');
+    try {
+        const r = await api('POST', '/api/registros/entrada', tipo ? { placa, tipo } : { placa });
+        aviso('mensaje', `Ingreso registrado: ${r.placa} (${r.tipo}) a las ${fechaHora(r.hora_entrada)}.`, 'success');
+        document.getElementById('placaEntrada').value = '';
+        document.getElementById('tipoEntrada').value = '';
+        recargar();
+    } catch (e) {
+        aviso('mensaje', e.message);
+    }
+}
+
+async function registrarSalida(placaDirecta) {
+    const placa = placaDirecta || document.getElementById('placaSalida').value.trim();
+    if (!placa) return aviso('mensaje', 'Escribe la placa del vehículo que sale.');
+    try {
+        const r = await api('POST', '/api/registros/salida', { placa });
+        aviso('mensaje', `Salida registrada: ${r.placa}. Total a pagar ${pesos(r.valor)}.`, 'success');
+        const t = document.getElementById('ticket');
+        t.innerHTML = `
+            <div class="fila"><span>Placa</span><strong>${esc(r.placa)} · ${esc(r.tipo)}</strong></div>
+            <div class="fila"><span>Entrada</span><span>${fechaHora(r.hora_entrada)}</span></div>
+            <div class="fila"><span>Salida</span><span>${fechaHora(r.hora_salida)}</span></div>
+            <div class="fila"><span>Tiempo</span><span>${duracion(r.minutos)}</span></div>
+            <div class="fila"><span>Horas cobradas</span><span>${r.horas_cobradas} × ${pesos(r.valor_hora)}</span></div>
+            <div class="fila total"><span>Total</span><span>${pesos(r.valor)}</span></div>`;
+        t.style.display = 'block';
+        document.getElementById('placaSalida').value = '';
+        recargar();
+    } catch (e) {
+        aviso('mensaje', e.message);
+    }
+}
+
+function darSalida(placa) {
+    if (confirm(`¿Registrar la salida del vehículo ${placa}?`)) registrarSalida(placa);
+}
+
+cargarTarifas();
+recargar();
+</script>
+
+</body>
+</html>

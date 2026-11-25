@@ -30,6 +30,14 @@ app.get('/vehiculos', (req, res) => {
     res.render('vehiculos', { API_URL });
 });
 
+app.get('/registros', (req, res) => {
+    res.render('registros', { API_URL });
+});
+
+app.get('/admin', (req, res) => {
+    res.render('admin', { API_URL });
+});
+
 // Railway asigna el puerto por variable de entorno
 const PORT = process.env.PORT || 4000;
 

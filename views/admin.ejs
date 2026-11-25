@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administración</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/app.css">
+</head>
+
+<body class="con-menu">
+
+<div class="theme-switch" onclick="toggleTheme()">
+    <div class="switch-track"><div class="switch-thumb"></div></div>
+    <span id="theme-label">Dark</span>
+</div>
+
+<div class="container xwide">
+
+    <nav id="menu" class="menu"></nav>
+
+    <h2>Administración</h2>
+    <p>Solo los administradores ven esta página. El servidor vuelve a verificar el rol en cada acción.</p>
+
+    <div id="mensaje" class="alert"></div>
+
+    <h4>Tarifas por hora</h4>
+    <div class="tabla-scroll">
+        <table>
+            <thead><tr><th>Tipo de vehículo</th><th>Valor por hora (COP)</th><th>Acción</th></tr></thead>
+            <tbody id="tablaTarifas"></tbody>
+        </table>
+    </div>
+
+    <h4>Usuarios registrados</h4>
+    <div class="tabla-scroll">
+        <table>
+            <thead><tr><th>ID</th><th>Nombre</th><th>Documento</th><th>Usuario</th><th>Rol</th><th>Acciones</th></tr></thead>
+            <tbody id="tablaUsuarios"></tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>window.API_URL = "<%= API_URL %>";</script>
+<script src="/js/comun.js"></script>
+<script>
+exigirSesion();
+pintarMenu('/admin');
+
+const yo = usuarioSesion() || {};
+
+async function cargarTarifas() {
+    try {
+        const tarifas = await api('GET', '/api/tarifas');
+        document.getElementById('tablaTarifas').innerHTML = tarifas.map(t => `
+            <tr>
+                <td>${t.tipo === 'Moto' ? '🏍️' : '🚗'} ${esc(t.tipo)}</td>
+                <td><input type="number" min="1" step="100" id="tarifa-${esc(t.tipo)}" value="${Number(t.valor_hora)}"></td>
+                <td><button class="btn-sm" onclick="guardarTarifa('${esc(t.tipo)}')">Guardar</button></td>
+            </tr>`).join('');
+    } catch (e) {
+        aviso('mensaje', e.message);
+    }
+}
+
+async function guardarTarifa(tipo) {
+    const valor = Number(document.getElementById('tarifa-' + tipo).value);
+    try {
+        await api('PUT', '/api/tarifas/' + encodeURIComponent(tipo), { valor_hora: valor });
+        aviso('mensaje', `Tarifa de ${tipo} actualizada a ${pesos(valor)} por hora.`, 'success');
+        cargarTarifas();
+    } catch (e) {
+        aviso('mensaje', e.message);
+    }
+}
+
+async function cargarUsuarios() {
+    try {
+        const usuarios = await api('GET', '/api/usuarios');
+        document.getElementById('tablaUsuarios').innerHTML = usuarios.map(u => {
+            const soyYo = u.usuario === yo.usuario;
+            return `
+            <tr>
+                <td>${u.id_usuario}</td>
+                <td>${esc(u.nombre)}${soyYo ? ' <span class="badge">tú</span>' : ''}</td>
+                <td>${esc(u.documento)}</td>
+                <td>${esc(u.usuario)}</td>
+                <td>
+                    <select id="rol-${u.id_usuario}" ${soyYo ? 'disabled' : ''}>
+                        <option value="usuario" ${u.rol === 'usuario' ? 'selected' : ''}>Usuario</option>
+                        <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Administrador</option>
+                    </select>
+                </td>
+                <td>${soyYo ? '<span class="badge admin">Administrador</span>' : `
+                    <button class="btn-sm" onclick="cambiarRol(${u.id_usuario})">Guardar rol</button>
+                    <button class="btn-sm danger" onclick="eliminarUsuario(${u.id_usuario}, '${esc(u.usuario)}')">Eliminar</button>`}
+                </td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        aviso('mensaje', e.message);
+        document.getElementById('tablaUsuarios').innerHTML = '<tr><td colspan="6" class="vacio">Sin acceso</td></tr>';
+    }
+}
+
+async function cambiarRol(id) {
+    const rol = document.getElementById('rol-' + id).value;
+    try {
+        await api('PUT', `/api/usuarios/${id}/rol`, { rol });
+        aviso('mensaje', `Rol actualizado a ${rol === 'admin' ? 'Administrador' : 'Usuario'}.`, 'success');
+        cargarUsuarios();
+    } catch (e) {
+        aviso('mensaje', e.message);
+    }
+}
+
+async function eliminarUsuario(id, usuario) {
+    if (!confirm(`¿Eliminar la cuenta de ${usuario}? Esta acción no se puede deshacer.`)) return;
+    try {
+        await api('DELETE', `/api/usuarios/${id}`);
+        aviso('mensaje', `Cuenta de ${usuario} eliminada.`, 'success');
+        cargarUsuarios();
+    } catch (e) {
+        aviso('mensaje', e.message);
+    }
+}
+
+if (yo.rol === 'admin') {
+    cargarTarifas();
+    cargarUsuarios();
+} else {
+    // La interfaz no muestra las herramientas; de todos modos el servidor responde 403
+    document.querySelectorAll('h4, .tabla-scroll').forEach(el => el.style.display = 'none');
+    aviso('mensaje', 'Acceso solo para administradores. Pide a un administrador que te asigne el rol.');
+}
+</script>
+
+</body>
+</html>

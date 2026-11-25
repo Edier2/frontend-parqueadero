@@ -1,11 +1,14 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vehículos</title>
     <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/app.css">
 </head>
 
-<body>
+<body class="con-menu">
 
 <!-- Botón dark mode -->
 <div class="theme-switch" onclick="toggleTheme()">
@@ -15,11 +18,13 @@
 
 <div class="container wide">
 
+    <nav id="menu" class="menu"></nav>
+
     <h2>Vehículos registrados</h2>
 
     <h4>Agregar vehículo</h4>
 
-    <input type="text" id="placa" placeholder="Placa (ej: ABC123)">
+    <input type="text" id="placa" placeholder="Placa (ej: ABC123)" maxlength="10">
 
     <select id="tipo">
         <option value="" disabled selected>Selecciona el tipo</option>
@@ -62,39 +67,36 @@
     </div>
 </div>
 
+<script>window.API_URL = "<%= API_URL %>";</script>
+<script src="/js/comun.js"></script>
 <script>
-const API = "<%= API_URL %>/api/vehiculos";
+exigirSesion();
+pintarMenu('/vehiculos');
 
 /* ── CARGAR ── */
 async function cargarVehiculos() {
-    const token = localStorage.getItem('token');
-
-    const res = await fetch(API, {
-        headers: { Authorization: 'Bearer ' + token }
-    });
-
-    const data = await res.json();
-    const tabla = document.getElementById('tabla');
-    tabla.innerHTML = '';
-
-    data.forEach(v => {
-        const icono = v.tipo === 'Moto' ? '🏍️' : '🚗';
-        tabla.innerHTML += `
+    try {
+        const data = await api('GET', '/api/vehiculos');
+        const tabla = document.getElementById('tabla');
+        tabla.innerHTML = data.map(v => {
+            const icono = v.tipo === 'Moto' ? '🏍️' : '🚗';
+            return `
             <tr>
-                <td>${v.placa}</td>
-                <td>${icono} ${v.tipo}</td>
+                <td>${esc(v.placa)}</td>
+                <td>${icono} ${esc(v.tipo)}</td>
                 <td>
-                    <button class="btn-sm" onclick="abrirModal('${v.placa}', '${v.tipo}')">Editar</button>
-                    <button class="btn-sm danger" onclick="eliminarVehiculo('${v.placa}')">Eliminar</button>
+                    <button class="btn-sm" onclick="abrirModal('${esc(v.placa)}', '${esc(v.tipo)}')">Editar</button>
+                    <button class="btn-sm danger" onclick="eliminarVehiculo('${esc(v.placa)}')">Eliminar</button>
                 </td>
-            </tr>
-        `;
-    });
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        alert(e.message);
+    }
 }
 
 /* ── CREAR ── */
 async function crearVehiculo() {
-    const token = localStorage.getItem('token');
     const placa = document.getElementById('placa').value.trim();
     const tipo  = document.getElementById('tipo').value;
 
@@ -103,18 +105,14 @@ async function crearVehiculo() {
         return;
     }
 
-    await fetch(API, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: 'Bearer ' + token
-        },
-        body: JSON.stringify({ placa, tipo })
-    });
-
-    document.getElementById('placa').value = '';
-    document.getElementById('tipo').value  = '';
-    cargarVehiculos();
+    try {
+        await api('POST', '/api/vehiculos', { placa, tipo });
+        document.getElementById('placa').value = '';
+        document.getElementById('tipo').value  = '';
+        cargarVehiculos();
+    } catch (e) {
+        alert(e.message);
+    }
 }
 
 /* ── MODAL ── */
@@ -130,25 +128,15 @@ function cerrarModal() {
 
 /* ── EDITAR ── */
 async function confirmarEdicion() {
-    const token = localStorage.getItem('token');
     const placa = document.getElementById('modalPlaca').textContent;
     const tipo  = document.getElementById('tipoEditar').value;
 
-    const res = await fetch(`${API}/${placa}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: 'Bearer ' + token
-        },
-        body: JSON.stringify({ tipo })
-    });
-
-    if (res.ok) {
+    try {
+        await api('PUT', '/api/vehiculos/' + encodeURIComponent(placa), { tipo });
         cerrarModal();
         cargarVehiculos();
-    } else {
-        alert('Error al actualizar. Revisa la consola.');
-        console.error(await res.text());
+    } catch (e) {
+        alert(e.message);
     }
 }
 
@@ -156,26 +144,13 @@ async function confirmarEdicion() {
 async function eliminarVehiculo(placa) {
     if (!confirm(`¿Eliminar el vehículo con placa ${placa}?`)) return;
 
-    const token = localStorage.getItem('token');
-    await fetch(`${API}/${placa}`, {
-        method: 'DELETE',
-        headers: { Authorization: 'Bearer ' + token }
-    });
-
-    cargarVehiculos();
+    try {
+        await api('DELETE', '/api/vehiculos/' + encodeURIComponent(placa));
+        cargarVehiculos();
+    } catch (e) {
+        alert(e.message);
+    }
 }
-
-/* ── DARK MODE ── */
-function toggleTheme() {
-    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    const next = isDark ? '' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    document.getElementById('theme-label').textContent = isDark ? 'Dark' : 'Light';
-    localStorage.setItem('theme', next);
-}
-
-const savedTheme = localStorage.getItem('theme');
-if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
 
 /* ── Cargar al iniciar ── */
 cargarVehiculos();
